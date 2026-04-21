@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -10,8 +11,14 @@ st.title("🗺️ Histórico de Vibraciones por Trayecto")
 # --- CONEXIÓN A SUPABASE ---
 @st.cache_resource
 def init_connection():
-    url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_KEY"]
+    # Intenta leer de Azure (os.environ) primero. Si no hay, usa st.secrets (local)
+    url = os.environ.get("SUPABASE_URL") or st.secrets.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_KEY") or st.secrets.get("SUPABASE_KEY")
+    
+    if not url or not key:
+        st.error("🚨 Faltan las credenciales de Supabase. Revisa las variables en Azure.")
+        st.stop()
+        
     return create_client(url, key)
 
 supabase = init_connection()
@@ -173,3 +180,26 @@ if not df_ruta.empty:
 
 else:
     st.warning(f"La tabla {tabla_seleccionada} está vacía o no tiene coordenadas válidas.")
+
+
+
+# --- DESCARGA DE DOCUMENTO --- igual hay que mirarlo q ns
+    st.divider()
+    st.subheader("📥 Exportar Parte de Trabajo")
+    
+    # Filtramos para que en el informe solo salgan los baches que requieren atención
+    df_informe = df_ruta[df_ruta[col_gravedad].isin(['INTERVENCION', 'INMEDIATA', 'ALERTA'])]
+    
+    if not df_informe.empty:
+        # Convertimos el dataframe a formato CSV
+        csv_informe = df_informe.to_csv(index=False).encode('utf-8')
+        
+        st.download_button(
+            label="Descargar Informe de Mantenimiento (CSV)",
+            data=csv_informe,
+            file_name=f"Parte_Mantenimiento_{tabla_seleccionada}.csv",
+            mime="text/csv",
+            type="primary" # Lo pone en color azul/destacado
+        )
+    else:
+        st.success("¡Buenas noticias! Este trayecto no tiene baches que requieran intervención.")
