@@ -5,7 +5,11 @@ import plotly.graph_objects as go
 from supabase import create_client, Client
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="Dashboard Histórico de Vías", layout="wide")
+st.set_page_config(
+    page_title="FerroVixia - Monitorización", 
+    page_icon="paginita.png", # Aquí pones el nombre exacto de tu imagen
+    layout="wide"
+)
 st.title("🗺️ Histórico de Vibraciones por Trayecto")
 
 # --- CONEXIÓN A SUPABASE ---
