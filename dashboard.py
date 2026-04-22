@@ -11,10 +11,19 @@ st.title("🗺️ Histórico de Vibraciones por Trayecto")
 # --- CONEXIÓN A SUPABASE ---
 @st.cache_resource
 def init_connection():
-    # Intenta leer de Azure (os.environ) primero. Si no hay, usa st.secrets (local)
-    url = os.environ.get("SUPABASE_URL") or st.secrets.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_KEY") or st.secrets.get("SUPABASE_KEY")
+    # 1. Intentamos leer de Azure (Variables de entorno)
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_KEY")
     
+    # 2. Si no están en Azure, intentamos usar los secretos locales (para cuando pruebas en tu PC)
+    if not url or not key:
+        try:
+            url = st.secrets["SUPABASE_URL"]
+            key = st.secrets["SUPABASE_KEY"]
+        except Exception:
+            pass # Si falla porque no existe el archivo, no hace nada y sigue
+            
+    # 3. Si después de todo no hay claves, mostramos error
     if not url or not key:
         st.error("🚨 Faltan las credenciales de Supabase. Revisa las variables en Azure.")
         st.stop()
@@ -54,7 +63,7 @@ if not lista_tablas:
 # Selector de ruta (tabla)
 col1, col2 = st.columns([1, 3])
 with col1:
-    # Formateamos el nombre de la tabla para que se lea mejor en el menú (ej: vigo_coruna_resultados -> Vigo Coruna)
+    # Formateamos el nombre de la tabla para que se lea mejor en el menú
     nombres_bonitos = {tabla: tabla.replace("_resultados", "").replace("_", " ").title() for tabla in lista_tablas}
     
     tabla_seleccionada = st.selectbox(
@@ -68,12 +77,11 @@ st.divider()
 # Cargar datos de la tabla elegida
 df_ruta = obtener_datos_tabla(tabla_seleccionada)
 
+# Verificamos que la tabla tenga datos antes de intentar pintar nada
 if not df_ruta.empty:
     # --- MÉTRICAS RÁPIDAS ---
     st.subheader(f"Resumen de: {nombres_bonitos[tabla_seleccionada]}")
     
-    # Adaptamos los nombres de columnas a tu CSV (en minúsculas si así lo subes a Supabase)
-    # IMPORTANTE: Asegúrate de que las columnas en Supabase coinciden con estos nombres
     col_gravedad = 'nivel_gravedad' if 'nivel_gravedad' in df_ruta.columns else 'Nivel_Gravedad'
     col_vel = 'velocidad_kmh' if 'velocidad_kmh' in df_ruta.columns else 'Velocidad_kmh'
     col_acel = 'aceleracion_ms2' if 'aceleracion_ms2' in df_ruta.columns else 'Aceleracion_ms2'
@@ -100,7 +108,6 @@ if not df_ruta.empty:
     
     fig_mapa = go.Figure()
 
-    # Mapear colores según la gravedad
     color_map = {
         'AVISO LEVE': 'yellow',
         'ALERTA': 'orange',
@@ -108,12 +115,8 @@ if not df_ruta.empty:
         'INMEDIATA': 'darkred'
     }
     
-    colores_baches = df_ruta[col_gravedad].map(color_map).fillna('gray')
-
-    # Para leyenda avisos:
-        # iterar sobre cada nivel de gravedad
+    # Para leyenda avisos: iterar sobre cada nivel de gravedad
     for gravedad, color in color_map.items():
-       
         df_filtrado = df_ruta[df_ruta[col_gravedad] == gravedad]
         
         if not df_filtrado.empty:
@@ -133,9 +136,9 @@ if not df_ruta.empty:
     
     config_leyenda = dict(
         title=dict(text='Nivel de Gravedad', font=dict(size=16, color="black")), 
-        font=dict(size=14, color="black"), # Texto de las categorías 
+        font=dict(size=14, color="black"), 
         itemsizing='constant', 
-        bgcolor="rgba(255, 255, 255, 0.85)", # fondo blanco con 85% de opacidad para que contraste con el mapa
+        bgcolor="rgba(255, 255, 255, 0.85)", 
         bordercolor="black",
         borderwidth=1,
         yanchor="top",
@@ -153,7 +156,6 @@ if not df_ruta.empty:
             legend=config_leyenda 
         )
     else:
-        # Satélite usando Esri World Imagery
         fig_mapa.update_layout(
             mapbox_style="white-bg", 
             margin={"r":0,"t":0,"l":0,"b":0},
@@ -174,24 +176,17 @@ if not df_ruta.empty:
     
     st.plotly_chart(fig_mapa, use_container_width=True)
     
-    # --- TABLA DE DATOS ---
     with st.expander("Ver datos crudos de la tabla"):
         st.dataframe(df_ruta)
 
-else:
-    st.warning(f"La tabla {tabla_seleccionada} está vacía o no tiene coordenadas válidas.")
-
-
-
-# --- DESCARGA DE DOCUMENTO --- igual hay que mirarlo q ns
+    # --- DESCARGA DE DOCUMENTO ---
+    # Ahora esto está correctamente tabulado dentro del 'if not df_ruta.empty:'
     st.divider()
     st.subheader("📥 Exportar Parte de Trabajo")
     
-    # Filtramos para que en el informe solo salgan los baches que requieren atención
     df_informe = df_ruta[df_ruta[col_gravedad].isin(['INTERVENCION', 'INMEDIATA', 'ALERTA'])]
     
     if not df_informe.empty:
-        # Convertimos el dataframe a formato CSV
         csv_informe = df_informe.to_csv(index=False).encode('utf-8')
         
         st.download_button(
@@ -199,7 +194,11 @@ else:
             data=csv_informe,
             file_name=f"Parte_Mantenimiento_{tabla_seleccionada}.csv",
             mime="text/csv",
-            type="primary" # Lo pone en color azul/destacado
+            type="primary" 
         )
     else:
         st.success("¡Buenas noticias! Este trayecto no tiene baches que requieran intervención.")
+
+# Esta es la pareja del 'if not df_ruta.empty:' de arriba
+else:
+    st.warning(f"La tabla {tabla_seleccionada} está vacía o no tiene coordenadas válidas.")
