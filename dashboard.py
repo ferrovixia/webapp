@@ -10,6 +10,16 @@ st.set_page_config(
     page_icon="paginita.png", # Aquí pones el nombre exacto de tu imagen
     layout="wide"
 )
+# --- OCULTAR MARCAS DE STREAMLIT ---
+hide_st_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            </style>
+            """
+st.markdown(hide_st_style, unsafe_allow_html=True)
+
 st.title("🗺️ Histórico de Vibraciones por Trayecto")
 
 # --- CONEXIÓN A SUPABASE ---
@@ -57,6 +67,19 @@ def obtener_datos_tabla(nombre_tabla):
     response = supabase.table(nombre_tabla).select("*").execute()
     return pd.DataFrame(response.data)
 
+@st.cache_data(ttl=3600) # Cacheamos por 1 hora para no saturar la BBDD
+def obtener_trayectoria_base(nombre_tabla_resultados):
+    # Extraemos el nombre del trayecto (ej: 'pontevedra_vigo_ida_resultados' -> 'pontevedra_vigo_ida')
+    nombre_limpio = nombre_tabla_resultados.replace("_resultados", "")
+    
+    response = supabase.table("trayectorias_base_gps")\
+        .select("latitud, longitud")\
+        .eq("nombre_trayecto", nombre_limpio)\
+        .order("orden")\
+        .execute()
+        
+    return pd.DataFrame(response.data)
+
 # --- INTERFAZ DE USUARIO ---
 lista_tablas = obtener_tablas_disponibles()
 
@@ -79,7 +102,8 @@ with col1:
 st.divider()
 
 # Cargar datos de la tabla elegida
-df_ruta = obtener_datos_tabla(tabla_seleccionada)
+with st.spinner(f"📡 Descargando datos de {nombres_bonitos[tabla_seleccionada]}..."):
+    df_ruta = obtener_datos_tabla(tabla_seleccionada)
 
 # Verificamos que la tabla tenga datos antes de intentar pintar nada
 if not df_ruta.empty:
@@ -109,9 +133,25 @@ if not df_ruta.empty:
         ["Callejero", "Satélite"], 
         horizontal=True
     )
+
+    df_base = obtener_trayectoria_base(tabla_seleccionada) # trayectoria base 
     
     fig_mapa = go.Figure()
 
+    # dibujar capa 1: ruta base
+    if not df_base.empty:
+        fig_mapa.add_trace(go.Scattermap(
+            lat=df_base['latitud'],
+            lon=df_base['longitud'],
+            mode='lines',
+            line=dict(width=3, color='rgba(0, 80, 200, 0.7)'), # Azul corporativo semi-transparente
+            name='Trayecto completo',
+            hoverinfo='skip' # Que no moleste al pasar el ratón
+        ))
+    else:
+        st.toast("Aviso: No se encontró la trayectoria base para dibujar la línea.", icon="⚠️")
+       
+    # Mapear colores según la gravedad
     color_map = {
         'AVISO LEVE': 'yellow',
         'ALERTA': 'orange',
@@ -119,12 +159,14 @@ if not df_ruta.empty:
         'INMEDIATA': 'darkred'
     }
     
+    colores_baches = df_ruta[col_gravedad].map(color_map).fillna('gray')
+
     # Para leyenda avisos: iterar sobre cada nivel de gravedad
     for gravedad, color in color_map.items():
         df_filtrado = df_ruta[df_ruta[col_gravedad] == gravedad]
         
         if not df_filtrado.empty:
-            fig_mapa.add_trace(go.Scattermapbox(
+            fig_mapa.add_trace(go.Scattermap(
                 lat=df_filtrado[col_lat], 
                 lon=df_filtrado[col_lon],
                 mode='markers', 
@@ -153,17 +195,17 @@ if not df_ruta.empty:
     
     if estilo_mapa == "Callejero":
         fig_mapa.update_layout(
-            mapbox_style="open-street-map", 
+            map_style="open-street-map",
             margin={"r":0,"t":0,"l":0,"b":0},
-            mapbox=dict(center=dict(lat=centro_lat, lon=centro_lon), zoom=12),
+            map=dict(center=dict(lat=centro_lat, lon=centro_lon), zoom=12),
             height=600,
             legend=config_leyenda 
         )
     else:
         fig_mapa.update_layout(
-            mapbox_style="white-bg", 
+            map_style="white-bg", 
             margin={"r":0,"t":0,"l":0,"b":0},
-            mapbox=dict(
+            map=dict(
                 center=dict(lat=centro_lat, lon=centro_lon), 
                 zoom=12,
                 layers=[
@@ -178,7 +220,7 @@ if not df_ruta.empty:
             legend=config_leyenda 
         )
     
-    st.plotly_chart(fig_mapa, use_container_width=True)
+    st.plotly_chart(fig_mapa, width="stretch")
     
     with st.expander("Ver datos crudos de la tabla"):
         st.dataframe(df_ruta)
