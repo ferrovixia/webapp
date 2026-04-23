@@ -97,7 +97,7 @@ def obtener_datos_tabla(nombre_tabla):
 @st.cache_data(ttl=3600) # Cacheamos por 1 hora para no saturar la BBDD
 def obtener_trayectoria_base(nombre_tabla_resultados):
     # Extraemos el nombre del trayecto (ej: 'pontevedra_vigo_ida_resultados' -> 'pontevedra_vigo_ida')
-    nombre_limpio = nombre_tabla_resultados.replace("_resultados", "")
+    nombre_limpio = nombre_tabla_resultados.replace("nuevo_", "").replace("_resultados", "")
     
     response = supabase.table("trayectorias_base_gps")\
         .select("latitud, longitud")\
