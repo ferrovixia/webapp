@@ -1,0 +1,15 @@
+[theme]
+# Color principal (afecta a botones, barras de progreso y elementos activos)
+primaryColor = "#0050C8" # Cambiadlo por el color principal de vuestra paleta
+
+# Color de fondo de la aplicación
+backgroundColor = "#FFFFFF" 
+
+# Color de fondo de las áreas secundarias (como el panel lateral)
+secondaryBackgroundColor = "#F0F2F6" # Un gris muy clarito o el color secundario de vuestra marca
+
+# Color del texto
+textColor = "#262730" 
+
+# Tipografía: podéis elegir "sans serif", "serif" o "monospace"
+font = "sans serif"
