@@ -1,4 +1,6 @@
 [theme]
+base = "light"
+
 # Color principal (afecta a botones, barras de progreso y elementos activos)
 primaryColor = "#7d192a" # Cambiadlo por el color principal de vuestra paleta
 
