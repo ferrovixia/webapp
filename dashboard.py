@@ -179,29 +179,27 @@ diccionario_trayectos = {
 
 # --- NAVEGACIÓN PRINCIPAL CON PESTAÑAS ---
 # Esto va en el cuerpo principal del script (sin tabular a la derecha)
-tab1, tab2 = st.tabs(["📊 Monitorización", "📋 Sobre el Proyecto"])
+tab1, tab2 = st.tabs(["Monitorización", "O proxecto"])
 
 # --- CONTENIDO DE LA PESTAÑA 1 ---
 with tab1:
-    st.title(f"🗺️ Visualización de trayectos")
-    st.markdown("**Análisis de vibraciones e infraestructura en el tramo seleccionado.**")
+    st.title(f"Visualización de traxectos")
+    st.markdown("**Análisis de vibracións e infraestructura no tramo seleccionado.**")
 
     col_sel1, col_sel2 = st.columns(2)
     with col_sel1:
         tabla_seleccionada = st.selectbox(
-            "🛤️ Selecciona el trayecto:", 
+            "Selecciona o traxecto:", 
             options=lista_tablas,
             format_func=lambda x: diccionario_trayectos.get(x, x)
         )
-    with col_sel2:
-        estilo_mapa = st.radio("🗺️ Tipo de mapa:", ["Callejero", "Satélite"], horizontal=True)
     
     nombre_amigable = diccionario_trayectos.get(tabla_seleccionada, tabla_seleccionada)
-    st.title(f"🗺️ {nombre_amigable}")
+    st.title(f"{nombre_amigable}")
 
     st.divider()
     # Cargar datos de la tabla elegida
-    with st.spinner(f"📡 Descargando datos de {nombre_amigable}..."):
+    with st.spinner(f"Descargando datos de {nombre_amigable}..."):
         df_ruta = obtener_datos_tabla(tabla_seleccionada)
 
     # Verificamos que la tabla tenga datos antes de intentar pintar nada
@@ -368,12 +366,12 @@ with tab1:
         
         # --- SECCIÓN DE DESGLOSE POR PUNTO ---
         st.divider()
-        st.subheader("🔍 Análisis detallado por Punto")
-        st.write("Selecciona un punto en el mapa (por su ID) para ver los datos de todos los trenes que han pasado por él.")
+        st.subheader("Análisis detallado por punto")
+        st.write("Selecciona un punto no mapa (por ID) para ver os datos de todos os trens que pasaron por el.")
         
         # Selector de Punto
         punto_seleccionado = st.selectbox(
-            "ID del Punto a analizar:",
+            "ID do punto a analizar:",
             options=df_mapa['ID_Punto'].sort_values()
         )
         
@@ -381,7 +379,7 @@ with tab1:
         df_detalle = df_ruta[df_ruta['ID_Punto'] == punto_seleccionado]
         
         if not df_detalle.empty:
-            st.write(f"**Historial de viajes para el Punto {punto_seleccionado}** ({len(df_detalle)} viajes registrados)")
+            st.write(f"**Historial de viaxes para o punto {punto_seleccionado}** ({len(df_detalle)} viaxes rexistrados)")
             
             # Mostramos la tabla limpia solo con las columnas de interés
             columnas_mostrar = ['Archivo', 'Velocidad_kmh', 'Aceleracion_Max', 'f_CWT', 'f_WVD', 'Lambda']
@@ -393,13 +391,13 @@ with tab1:
                 hide_index=True # Oculta el número de fila por defecto que no aporta nada
             )
         
-        with st.expander("Ver datos crudos de la tabla"):
+        with st.expander("Ver datos crudos da tabla"):
             st.dataframe(df_ruta)
 
         # --- DESCARGA DE DOCUMENTO ---
         
         st.divider()
-        st.subheader("📥 Exportar Parte de Trabajo")
+        st.subheader("Exportar datos do traxecto")
         
         df_informe = df_ruta[df_ruta[col_gravedad].isin(['INTERVENCION', 'INTERVENCION INMEDIATA', 'ALERTA'])]
         
@@ -407,14 +405,14 @@ with tab1:
             csv_informe = df_informe.to_csv(index=False).encode('utf-8')
             
             st.download_button(
-                label="Descargar Informe de Mantenimiento (CSV)",
+                label="Descargar informe de mantemento (CSV)",
                 data=csv_informe,
                 file_name=f"Parte_Mantenimiento_{tabla_seleccionada}.csv",
                 mime="text/csv",
                 type="primary" 
             )
         else:
-            st.success("¡Buenas noticias! Este trayecto no tiene baches que requieran intervención.")
+            st.success("Este traxecto non ten baches que precisen intervención.")
 
     # Esta es la pareja del 'if not df_ruta.empty:' de arriba
     else:
