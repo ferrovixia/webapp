@@ -4,17 +4,64 @@ import pandas as pd
 import plotly.graph_objects as go
 from supabase import create_client, Client
 
-# --- CONFIGURACIÓN DE PÁGINA --
+# --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
     page_title="FerroVixia - Monitorización", 
-    page_icon="paginita.png", # Aquí pones el nombre exacto de tu imagen
+    page_icon="paginita.png",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 st.logo("logo_ferrovixia.png", icon_image="logo_ferrovixia_pequeno.png")
-# --- OCULTAR MARCAS DE STREAMLIT ---
-# --- OCULTAR MARCAS DE STREAMLIT (CORREGIDO) ---
-# --- OCULTAR MARCAS DE STREAMLIT (VERSIÓN BULLETPROOF) ---
+
+color_fondo = "#7d192a"  
+color_texto = "#FFFFFF" 
+
+html_header = f"""
+<style>
+/* 1. Ocultar EXACTAMENTE el bloque HTML que me has pasado (Header completo) */
+[data-testid="stHeader"] {{
+    display: none !important;
+}}
+
+/* 2. Quitar el padding superior que mete Streamlit por defecto en la página */
+.block-container {{
+    padding-top: 0rem !important;
+}}
+
+/* 3. Clase personalizada para expandir tu franja */
+.banner-ferrovixia {{
+    background-color: {color_fondo}; 
+    padding: 25px; 
+    text-align: center; 
+    margin-bottom: 25px;
+    
+    /* Márgenes laterales negativos para ocupar todo el ancho */
+    margin-left: -5rem;
+    margin-right: -5rem;
+    
+    /* Margen superior normalizado porque ya no hay header de Streamlit */
+    margin-top: -1rem; 
+}}
+
+/* 4. Ajuste automático para que en móviles no se rompa */
+@media (max-width: 768px) {{
+    .banner-ferrovixia {{
+        margin-left: -1rem;
+        margin-right: -1rem;
+        margin-top: -1rem;
+    }}
+}}
+</style>
+
+<div class="banner-ferrovixia">
+    <h1 style="color: {color_texto}; margin: 0; font-size: 2.5rem; font-weight: bold;">FerroVixía</h1>
+    <p style="color: {color_texto}; margin: 0; opacity: 0.9; font-size: 1.1rem; margin-top: 5px;">
+        Sistema de Monitorización Ferroviaria
+    </p>
+</div>
+"""
+st.markdown(html_header, unsafe_allow_html=True)
+
 hide_st_style = """
             <style>
             /* 1. Oculta el menú de la derecha (los 3 puntos) sin romper el header */
@@ -52,11 +99,11 @@ st.markdown(hide_st_style, unsafe_allow_html=True)
 # --- CONEXIÓN A SUPABASE ---
 @st.cache_resource
 def init_connection():
-    # 1. Intentamos leer de Azure (Variables de entorno)
+
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
     
-    # 2. Si no están en Azure, intentamos usar los secretos locales (para cuando pruebas en tu PC)
+   
     if not url or not key:
         try:
             url = st.secrets["SUPABASE_URL"]
@@ -64,7 +111,7 @@ def init_connection():
         except Exception:
             pass # Si falla porque no existe el archivo, no hace nada y sigue
             
-    # 3. Si después de todo no hay claves, mostramos error
+   
     if not url or not key:
         st.error("🚨 Faltan las credenciales de Supabase. Revisa las variables en Azure.")
         st.stop()
@@ -114,32 +161,21 @@ if not lista_tablas:
     st.info("No se han encontrado tablas terminadas en '_resultados' en la base de datos.")
     st.stop()
 
-# Selector de ruta (tabla)
+
+nombres_bonitos = {tabla: tabla.replace("nuevo_", "").replace("_resultados", "").replace("_", " ").title() for tabla in lista_tablas}
+# --- DICCIONARIO DE TRAYECTOS ---
+diccionario_trayectos = {
+    "nuevo_pontevedra_vigo_ida_resultados": "Vigo - Pontevedra",
+    "nuevo_pontevedra_vigo_vuelta_resultados": "Pontevedra - Vigo",
+    "nuevo_vilagarcia_pontevedra_ida_resultados": "Pontevedra - Vilagarcía",
+    "nuevo_vilagarcia_pontevedra_vuelta_resultados": "Vilagarcía - Pontevedra",
+    "nuevo_santiago_vilagarcia_ida_resultados": "Vilagarcía - Santiago",
+    "nuevo_santiago_vilagarcia_vuelta_resultados": "Santiago - Vilagarcía",
+    "nuevo_coruna_santiago_ida_resultados": "Santiago - Coruña",
+    "nuevo_coruna_santiago_vuelta_resultados": "Coruña - Santiago"
+}
+
 # --- PANEL LATERAL (FILTROS Y CONTROLES) ---
-with st.sidebar:
-    # --- LOGO CORPORATIVO (AJUSTA EL ANCHO AQUÍ) ---
-    st.image("logo_ferrovixia.png", width=220) # Sube de 200 si lo quieres aún más grande
-    
-    st.subheader("⚙️ Panel de Control")
-    
-    # Formateamos el nombre de la tabla (ahora también oculta el "nuevo_")
-    nombres_bonitos = {tabla: tabla.replace("nuevo_", "").replace("_resultados", "").replace("_", " ").title() for tabla in lista_tablas}
-    
-    tabla_seleccionada = st.selectbox(
-        "🛤️ Selecciona el trayecto:", 
-        options=lista_tablas,
-        format_func=lambda x: nombres_bonitos[x]
-    )
-    
-    st.divider()
-    
-    # Hemos movido aquí también el selector del mapa para tener todos los botones juntos
-    estilo_mapa = st.radio(
-        "🗺️ Tipo de mapa:", 
-        ["Callejero", "Satélite"], 
-        horizontal=False
-    )
-st.divider()
 
 # --- NAVEGACIÓN PRINCIPAL CON PESTAÑAS ---
 # Esto va en el cuerpo principal del script (sin tabular a la derecha)
@@ -147,9 +183,25 @@ tab1, tab2 = st.tabs(["📊 Monitorización", "📋 Sobre el Proyecto"])
 
 # --- CONTENIDO DE LA PESTAÑA 1 ---
 with tab1:
-    st.title("🗺️ Histórico de Vibraciones por Trayecto")
+    st.title(f"🗺️ Visualización de trayectos")
+    st.markdown("**Análisis de vibraciones e infraestructura en el tramo seleccionado.**")
+
+    col_sel1, col_sel2 = st.columns(2)
+    with col_sel1:
+        tabla_seleccionada = st.selectbox(
+            "🛤️ Selecciona el trayecto:", 
+            options=lista_tablas,
+            format_func=lambda x: diccionario_trayectos.get(x, x)
+        )
+    with col_sel2:
+        estilo_mapa = st.radio("🗺️ Tipo de mapa:", ["Callejero", "Satélite"], horizontal=True)
+    
+    nombre_amigable = diccionario_trayectos.get(tabla_seleccionada, tabla_seleccionada)
+    st.title(f"🗺️ {nombre_amigable}")
+
+    st.divider()
     # Cargar datos de la tabla elegida
-    with st.spinner(f"📡 Descargando datos de {nombres_bonitos[tabla_seleccionada]}..."):
+    with st.spinner(f"📡 Descargando datos de {nombre_amigable}..."):
         df_ruta = obtener_datos_tabla(tabla_seleccionada)
 
     # Verificamos que la tabla tenga datos antes de intentar pintar nada
@@ -188,7 +240,7 @@ with tab1:
         df_mapa[columnas_metricas] = df_mapa[columnas_metricas].round(2)
 
         # --- MÉTRICAS RÁPIDAS ---
-        st.subheader(f"Resumen de: {nombres_bonitos[tabla_seleccionada]}")
+        st.subheader(f"Resumen de: {nombre_amigable}")
         
         col_gravedad = 'Nivel' if 'Nivel' in df_ruta.columns else 'nivel_gravedad'
         col_vel = 'velocidad_kmh' if 'velocidad_kmh' in df_ruta.columns else 'Velocidad_kmh'
@@ -345,7 +397,7 @@ with tab1:
             st.dataframe(df_ruta)
 
         # --- DESCARGA DE DOCUMENTO ---
-        # Ahora esto está correctamente tabulado dentro del 'if not df_ruta.empty:'
+        
         st.divider()
         st.subheader("📥 Exportar Parte de Trabajo")
         
@@ -369,33 +421,30 @@ with tab1:
         st.warning(f"La tabla {tabla_seleccionada} está vacía o no tiene coordenadas válidas.")
 
 with tab2:
-    st.title("📖 Sobre FerroVixia")
+    st.title("Sobre FerroVixia")
 
     st.markdown("""
-    ### 🚆 ¿Qué es FerroVixia?
-    **FerroVixia** es un sistema inteligente de monitorización diseñado para mejorar la seguridad y el mantenimiento de las vías ferroviarias. 
-    Mediante el análisis de vibraciones en tiempo real, detectamos anomalías y baches que podrían comprometer la infraestructura.
+    ### A NOSA PROPOSTA
+    FerroVixía transforma os trens comerciais en sensores activos capaces de detectar anomalías nas vías. Mediante dispositivos IoT e procesamento dixital das sinais, 
+    o prototipo distingue elementos fixos, como cambios de agulla, de defectos xeométricos. A información recóllese nunha base de datos na nube 
+    e exponse nunha interface web que facilita o mantemento preditivo e mellora a seguridade ferroviaria.
     """)
 
     col_a, col_b = st.columns(2)
     with col_a:
-        st.info("#### 🎯 Objetivo\nVisualizar y analizar el estado de las vías mediante datos de acelerometría y GPS para una intervención predictiva.")
+        st.info("#### A NOSA MISIÓN\nMonitorización continua, versátil e xeolocalizada das vías de tren.")
     with col_b:
-        st.success("#### 🛠️ Tecnología\nStack moderno: Python 3.12, Streamlit, Supabase (PostgreSQL) y despliegue continuo en Azure.")
+        st.success("#### A TECNOLOXÍA\nInternet das Cousas (IoT), procesamento de sinais (CWT, WVD), detección de anomalías, Smart Data")
 
-    st.subheader("⚙️ Funcionamiento del Pipeline")
+    st.subheader(" O PASO A PASO")
     # Puedes usar un diagrama simple o una lista de pasos
     st.write("""
-    1. **Captura:** Dispositivos M5Stack instalados en el tren recogen datos de aceleración y posición.
-    2. **Procesado:** Un script en MATLAB filtra el ruido y calcula métricas de gravedad (CWT, WVD, Lambda).
-    3. **Almacenamiento:** Los resultados se suben a nuestra base de datos Supabase.
-    4. **Visualización:** Este Dashboard en la nube presenta la información de forma interactiva.
+    1. **Captura:** Dispositivos M5Stack instalados a bordo do tren recollen datos de aceleración e posición.
+    2. **Procesado:** Coa ferramenta MATLAB aplicamos as técnicas de procesamento de sinal (CWT, WVD) para filtrar a información.
+    3. **Almacenamento:** Os resultados filtrados almacénanse na nosa base de datos Supabase.
+    4. **Visualización:** Esta interfaz web na nube presenta a información das viaxes de forma interactiva.
     """)
     
-    # Podéis añadir aquí una imagen del hardware (M5Stack) o del equipo
-    #st.image("hardware_setup.jpg", caption="Dispositivo de captura basado en M5Stack")
-
-
 # --- PIE DE PÁGINA (FOOTER) ---
 st.divider() # Línea sutil de separación
 
@@ -403,19 +452,21 @@ st.divider() # Línea sutil de separación
 f1, f2, f3 = st.columns([2, 2, 1])
 
 with f1:
-    st.markdown("**Desarrollado por:**")
-    st.write("👩‍💻 Nombre Ingeniera 1")
-    st.write("👩‍💻 Nombre Ingeniera 2")
-
+    st.markdown("**O equipo:**")
+    st.write("Eva Deibe de Bernardo")
+    st.write("Marcos López Miguel")
+    st.write("Manuela Outeiro Otero")
+    st.write("Adriana Pazos Lorenzo")
+    st.write("Uxía Veiras Suárez")
+    
 with f2:
-    st.markdown("**Información de Contacto:**")
-    st.write("📧 contacto@universidad.edu")
-    st.write("📍 Escuela de Ingeniería, Vigo")
+    st.markdown("**Contacto:**")
+    st.write("📧 ferrovixia@gmail.com")
+    st.write("📍 Escola de Enxeñaría de Telecomunicación, Vigo")
 
 # with f3:
-    # Aquí puedes poner el logo de la universidad
-    # use_container_width=True hace que se ajuste al tamaño de la columna
+    # use_container_width=True 
     # st.image("logo_universidad.png", use_container_width=True)
 
 # Nota de copyright opcional al final
-st.caption("© 2026 Proyecto FerroVixia - Monitorización Ferroviaria en tiempo real")
+st.caption("© 2026 Proyecto FerroVixia - Monitorización Ferroviaria")
