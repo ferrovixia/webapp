@@ -227,7 +227,6 @@ with tab1:
     
     nombre_amigable = diccionario_trayectos.get(tabla_seleccionada, tabla_seleccionada)
 
-    st.divider()
     # Cargar datos de la tabla elegida
     with st.spinner(f"Descargando datos de {nombre_amigable}..."):
         df_ruta = obtener_datos_tabla(tabla_seleccionada)
@@ -268,7 +267,7 @@ with tab1:
         df_mapa[columnas_metricas] = df_mapa[columnas_metricas].round(2)
 
         # --- MÉTRICAS RÁPIDAS ---
-        st.subheader(f"Resumo de: {nombre_amigable}")
+        st.subheader(f"Resumo do traxecto")
         
         col_gravedad = 'Nivel' if 'Nivel' in df_ruta.columns else 'nivel_gravedad'
         col_vel = 'velocidad_kmh' if 'velocidad_kmh' in df_ruta.columns else 'Velocidad_kmh'
