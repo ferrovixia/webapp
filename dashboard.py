@@ -2,6 +2,7 @@ import os
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+import base64
 from supabase import create_client, Client
 
 # --- CONFIGURACIÓN DE PÁGINA ---
@@ -12,52 +13,82 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 st.logo("logo_ferrovixia.png", icon_image="logo_ferrovixia_pequeno.png")
+def get_base64(bin_file):
+    with open(bin_file, 'rb') as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+# Convertimos tu logo
+try:
+    logo_base64 = get_base64("logo_ferrovixia.png")
+except:
+    logo_base64 = "" # Por si el archivo no existe aún
 
 color_fondo = "#7d192a"  
 color_texto = "#FFFFFF" 
 
 html_header = f"""
 <style>
-/* 1. Ocultar EXACTAMENTE el bloque HTML que me has pasado (Header completo) */
+/* 1. Ocultar Header de Streamlit */
 [data-testid="stHeader"] {{
     display: none !important;
 }}
 
-/* 2. Quitar el padding superior que mete Streamlit por defecto en la página */
 .block-container {{
     padding-top: 0rem !important;
 }}
 
-/* 3. Clase personalizada para expandir tu franja */
+/* 2. Banner con Flexbox */
 .banner-ferrovixia {{
     background-color: {color_fondo}; 
-    padding: 25px; 
-    text-align: center; 
+    padding: 15px 25px; 
     margin-bottom: 25px;
-    
-    /* Márgenes laterales negativos para ocupar todo el ancho */
     margin-left: -5rem;
     margin-right: -5rem;
-    
-    /* Margen superior normalizado porque ya no hay header de Streamlit */
-    margin-top: -1rem; 
+    margin-top: -1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center; /* Centra el texto */
+    position: relative; /* Para poder fijar el logo a la izquierda */
+    min-height: 100px;
 }}
 
-/* 4. Ajuste automático para que en móviles no se rompa */
+.logo-container {{
+    position: absolute;
+    left: 6rem; /* Ajusta según lo lejos que lo quieras del borde */
+}}
+
+.logo-img {{
+    height: 70px; /* Ajusta el tamaño de tu logo */
+}}
+
+.texto-banner {{
+    text-align: center;
+}}
+
 @media (max-width: 768px) {{
     .banner-ferrovixia {{
         margin-left: -1rem;
         margin-right: -1rem;
-        margin-top: -1rem;
+        flex-direction: column; /* En móvil el logo se pone arriba y el texto abajo */
+    }}
+    .logo-container {{
+        position: static;
+        margin-bottom: 10px;
     }}
 }}
 </style>
 
 <div class="banner-ferrovixia">
-    <h1 style="color: {color_texto}; margin: 0; font-size: 2.5rem; font-weight: bold;">FerroVixía</h1>
-    <p style="color: {color_texto}; margin: 0; opacity: 0.9; font-size: 1.1rem; margin-top: 5px;">
-        Sistema de Monitorización Ferroviaria
-    </p>
+    <div class="logo-container">
+        <img src="data:image/png;base64,{logo_base64}" class="logo-img">
+    </div>
+    <div class="texto-banner">
+        <h1 style="color: {color_texto}; margin: 0; font-size: 2.5rem; font-weight: bold;">FerroVixía</h1>
+        <p style="color: {color_texto}; margin: 0; opacity: 0.9; font-size: 1.1rem; margin-top: 5px;">
+            Sistema de Monitorización Ferroviaria
+        </p>
+    </div>
 </div>
 """
 st.markdown(html_header, unsafe_allow_html=True)
@@ -195,7 +226,6 @@ with tab1:
         )
     
     nombre_amigable = diccionario_trayectos.get(tabla_seleccionada, tabla_seleccionada)
-    st.title(f"{nombre_amigable}")
 
     st.divider()
     # Cargar datos de la tabla elegida
@@ -238,7 +268,7 @@ with tab1:
         df_mapa[columnas_metricas] = df_mapa[columnas_metricas].round(2)
 
         # --- MÉTRICAS RÁPIDAS ---
-        st.subheader(f"Resumen de: {nombre_amigable}")
+        st.subheader(f"Resumo de: {nombre_amigable}")
         
         col_gravedad = 'Nivel' if 'Nivel' in df_ruta.columns else 'nivel_gravedad'
         col_vel = 'velocidad_kmh' if 'velocidad_kmh' in df_ruta.columns else 'Velocidad_kmh'
@@ -467,4 +497,4 @@ with f2:
     # st.image("logo_universidad.png", use_container_width=True)
 
 # Nota de copyright opcional al final
-st.caption("© 2026 Proyecto FerroVixia - Monitorización Ferroviaria")
+st.caption("© 2026 Proxecto FerroVixia - Monitorización Ferroviaria")
