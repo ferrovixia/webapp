@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import base64
 from supabase import create_client, Client
 
-# --- CONFIGURACIÓN DE PÁGINA ---
+# --- CONFIGURACIÓN DE PÁGINA --
 st.set_page_config(
     page_title="FerroVixia - Monitorización", 
     page_icon="paginita.png",
