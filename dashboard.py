@@ -25,6 +25,7 @@ except:
     logo_base64 = "" # Por si el archivo no existe aún
 
 color_fondo = "#7d192a"  
+color_secundario = "#7d192a92"
 color_texto = "#FFFFFF" 
 
 html_header = f"""
@@ -38,11 +39,37 @@ html_header = f"""
     padding-top: 0rem !important;
 }}
 
+div[data-baseweb="tab-list"] {{
+    width: 100% !important;
+    display: flex !important;
+}}
+
+/* Hacer que cada botón (pestaña) crezca exactamente lo mismo */
+button[data-baseweb="tab"] {{
+    flex: 1 !important;
+}}
+
+/* Centrar el texto dentro de la pestaña */
+button[data-baseweb="tab"] div[data-testid="stMarkdownContainer"] p {{
+    margin: auto !important;
+    text-align: center !important;
+    font-size: 18px !important; /* Puedes cambiar el tamaño si quieres que destaquen más */
+}}
+
+button[data-baseweb="tab"][aria-selected="true"] {{
+    background-color: {color_secundario} !important;
+}}
+
+/* Ponemos el texto en blanco y negrita para que se lea bien sobre el fondo oscuro */
+button[data-baseweb="tab"][aria-selected="true"] div[data-testid="stMarkdownContainer"] p {{
+    color: white !important;
+}}
+
 /* 2. Banner con Flexbox */
 .banner-ferrovixia {{
     background-color: {color_fondo}; 
     padding: 15px 25px; 
-    margin-bottom: 25px;
+    margin-bottom: 1px;
     margin-left: -5rem;
     margin-right: -5rem;
     margin-top: -1rem;
@@ -210,7 +237,7 @@ diccionario_trayectos = {
 
 # --- NAVEGACIÓN PRINCIPAL CON PESTAÑAS ---
 # Esto va en el cuerpo principal del script (sin tabular a la derecha)
-tab1, tab2 = st.tabs(["Monitorización", "O proxecto"])
+tab1, tab2 = st.tabs(["MONITORIZACIÓN", "O PROXECTO"])
 
 # --- CONTENIDO DE LA PESTAÑA 1 ---
 with tab1:
@@ -268,251 +295,194 @@ with tab1:
         columnas_metricas = ['Aceleracion_Max', 'Velocidad_kmh', 'f_CWT', 'f_WVD', 'Lambda']
         df_mapa[columnas_metricas] = df_mapa[columnas_metricas].round(2)
 
-        # --- MÉTRICAS RÁPIDAS ---
-        st.header(f"{nombre_amigable}")
-        st.subheader(f"Resumo do traxecto")
-        
-        col_gravedad = 'Nivel' if 'Nivel' in df_ruta.columns else 'nivel_gravedad'
-        col_vel = 'velocidad_kmh' if 'velocidad_kmh' in df_ruta.columns else 'Velocidad_kmh'
-        col_acel = 'aceleracion_ms2' if 'aceleracion_ms2' in df_ruta.columns else 'Aceleracion_ms2'
-        col_lat = 'latitud' if 'latitud' in df_ruta.columns else 'Latitud'
-        col_lon = 'longitud' if 'longitud' in df_ruta.columns else 'Longitud'
-
-        total_puntos_unicos = len(df_mapa)
-        
-        # Filtramos sobre el resumen del mapa
-        puntos_criticos = len(df_mapa[df_mapa[col_gravedad].isin(['INTERVENCION', 'INTERVENCION INMEDIATA'])])
-        
-        # La velocidad media ahora es el promedio de las velocidades medias de cada punto
-        vel_media = df_mapa[col_vel].mean() if col_vel in df_mapa.columns else 0.0
-        
-        # 3. Visualización de métricas
-        m1, m2, m3 = st.columns(3)
-        
-        # He ajustado los nombres para que sean más claros para el usuario
-        m1.metric("Total Puntos Analizados", total_puntos_unicos)
-        m2.metric("Puntos con Defectos", puntos_criticos, delta_color="inverse")
-        m3.metric("Velocidad Media (km/h)", f"{vel_media:.1f}")
-        # --- MAPA ---
-        st.subheader("Mapa de Impactos")
-        
-        estilo_mapa = st.radio(
-            "Tipo de mapa:", 
-            ["Callejero", "Satélite"], 
-            horizontal=True
-        )
-
-        df_base = obtener_trayectoria_base(tabla_seleccionada) # trayectoria base 
-        
-        fig_mapa = go.Figure()
-
-        # --- CAPA 1: RUTA BASE ---
-        if not df_base.empty:
-            fig_mapa.add_trace(go.Scattermap(
-                lat=df_base['latitud'],
-                lon=df_base['longitud'],
-                mode='lines',
-                line=dict(width=3, color='rgba(0, 80, 200, 0.7)'), 
-                name='Trayecto completo',
-                hoverinfo='skip' 
-            ))
-        else:
-            st.toast("Aviso: No se encontró la trayectoria base para dibujar la línea.", icon="⚠️")
-        
-        # (Aseguramos que la memoria interna exista)
+       # (Aseguramos que la memoria interna exista antes de pintar nada)
         if 'punto_seleccionado' not in st.session_state:
             st.session_state.punto_seleccionado = "Todos"
 
-        # --- CAPA 2: LA SOMBRA NEGRA PERMANENTE (NUEVO) ---
-        # Calculamos sus coordenadas fuera del bucle. Siempre existe.
-        lat_sombra, lon_sombra = [], []
-        if st.session_state.punto_seleccionado != "Todos":
-            punto_df = df_mapa[df_mapa['ID_Punto'].astype(str) == st.session_state.punto_seleccionado]
-            if not punto_df.empty:
-                lat_sombra = [punto_df['Latitud'].iloc[0]]
-                lon_sombra = [punto_df['Longitud'].iloc[0]]
-                
-        fig_mapa.add_trace(go.Scattermap(
-            lat=lat_sombra,
-            lon=lon_sombra,
-            mode='markers',
-            marker=dict(size=20, color='black', opacity=1), # Ligeramente más grande que los normales
-            hoverinfo='skip', 
-            showlegend=False  
-        ))
+        st.header(f"{nombre_amigable}")
+        
+        # --- CREAMOS LAS DOS COLUMNAS EN PARALELO ---
+        # El 60% del ancho para el mapa (1.5) y el 40% para los datos (1)
+        col_mapa, col_datos = st.columns([1.5, 1], gap="large")
 
-        # Mapear colores según la gravedad
-        # Mapear colores según la gravedad
-        color_map = {
-            'AVISO LEVE': 'yellow',
-            'ALERTA': 'orange',
-            'INTERVENCION': 'red',
-            'INTERVENCION INMEDIATA': 'darkred' 
-        }
-
-        # --- CAPAS DE PUNTOS (Con selección nativa de Plotly) ---
-        for gravedad, color in color_map.items():
-            df_filtrado = df_mapa[df_mapa['Nivel'] == gravedad].copy() 
+        # ==========================================
+        # COLUMNA IZQUIERDA: EL MAPA
+        # ==========================================
+        with col_mapa:
+            st.subheader("Mapa de Impactos")
             
-            if not df_filtrado.empty:
-                indices_seleccionados = []
-                
-                if st.session_state.punto_seleccionado != "Todos":
-                    coincidencias = df_filtrado['ID_Punto'].astype(str) == st.session_state.punto_seleccionado
-                    if coincidencias.any():
-                        # CLAVE: Plotly necesita el índice relativo (0, 1, 2...) dentro de esta capa
-                        indices_seleccionados = df_filtrado.reset_index(drop=True).index[coincidencias].tolist()
+            estilo_mapa = st.radio(
+                "Tipo de mapa:", 
+                ["Callejero", "Satélite"], 
+                horizontal=True
+            )
 
+            df_base = obtener_trayectoria_base(tabla_seleccionada) 
+            fig_mapa = go.Figure()
+
+            # --- CAPA 1: RUTA BASE ---
+            if not df_base.empty:
                 fig_mapa.add_trace(go.Scattermap(
-                    lat=df_filtrado['Latitud'], 
-                    lon=df_filtrado['Longitud'],
-                    mode='markers', 
-                    customdata=df_filtrado['ID_Punto'].astype(str), 
-                    marker=dict(size=14, color=color, opacity=0.85), 
-                    
-                    # --- LA SOLUCIÓN NATIVA ---
-                    # Cambiamos el color a Cyan (#00FFFF) y lo hacemos más grande
-                    selected=dict(marker=dict(color='#00FFFF', size=22, opacity=1)), 
-                    unselected=dict(marker=dict(opacity=0.85)), # Evita que los demás se apaguen
-                    selectedpoints=indices_seleccionados if indices_seleccionados else None,
-                    
-                    name=gravedad, 
-                    text=(
-                        "<b>Punto ID: " + df_filtrado['ID_Punto'].astype(str) + "</b><br>" +
-                        "Nivel: " + df_filtrado['Nivel'] + "<br>" +
-                        "Acel. Máx: " + df_filtrado['Aceleracion_Max'].astype(str) + " g<br>" +
-                        "Vel. Media: " + df_filtrado['Velocidad_kmh'].astype(str) + " km/h<br>" +
-                        "Viajes analizados: " + df_filtrado['Num_Viajes'].astype(str)
-                    ),
-                    hoverinfo="text"
+                    lat=df_base['latitud'], lon=df_base['longitud'],
+                    mode='lines',
+                    line=dict(width=3, color='rgba(0, 80, 200, 0.7)'), 
+                    name='Trayecto completo', hoverinfo='skip' 
                 ))
-
-        # Configuración del mapa (Esto se queda igual)
-        centro_lat = df_ruta[col_lat].mean()
-        centro_lon = df_ruta[col_lon].mean()
-
-        config_leyenda = dict(
-            title=dict(text='Nivel de Gravedad', font=dict(size=16, color="black")), 
-            font=dict(size=14, color="black"), 
-            itemsizing='constant', 
-            bgcolor="rgba(255, 255, 255, 0.85)", 
-            bordercolor="black",
-            borderwidth=1,
-            yanchor="top",
-            y=0.95, 
-            xanchor="right",
-            x=0.99
-        )
-        
-        revision_id = tabla_seleccionada 
-
-        if estilo_mapa == "Callejero":
-            fig_mapa.update_layout(
-                uirevision=revision_id, # <--- ESTA ES LA CLAVE
-                map_style="open-street-map",
-                margin={"r":0,"t":0,"l":0,"b":0},
-                map=dict(center=dict(lat=centro_lat, lon=centro_lon), zoom=12),
-                height=600,
-                legend=config_leyenda 
-            )
-        else:
-            fig_mapa.update_layout(
-                uirevision=revision_id, # <--- ESTA ES LA CLAVE
-                map_style="white-bg", 
-                margin={"r":0,"t":0,"l":0,"b":0},
-                map=dict(
-                    center=dict(lat=centro_lat, lon=centro_lon), 
-                    zoom=12,
-                    layers=[
-                        dict(
-                            sourcetype="raster",
-                            source=["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
-                            below="traces"
-                        ),
-                        dict(
-                            sourcetype="raster",
-                            source=["https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"],
-                            below="traces"
-                        )
-                    ]
-                ),
-                height=600,
-                legend=config_leyenda 
-            )
-        
-        # --- 1. DIBUJAMOS EL MAPA Y CAPTURAMOS EL CLIC ---
-        evento = st.plotly_chart(
-            fig_mapa, 
-            use_container_width=True, 
-            on_select="rerun", 
-            key="mapa_interactivo_ferrovixia"
-        )
-        # --- 2. LÓGICA DE SINCRONIZACIÓN (MAPA -> MEMORIA) ---
-        puntos_tocados = evento.selection.get("points", [])
-        if len(puntos_tocados) > 0:
-            # Ahora leemos el ID real desde 'customdata' de forma blindada
-            punto_tocado = str(puntos_tocados[0]["customdata"])
+            else:
+                st.toast("Aviso: No se encontró la trayectoria base para dibujar la línea.", icon="⚠️")
             
-            if st.session_state.punto_seleccionado != punto_tocado:
-                st.session_state.punto_seleccionado = punto_tocado
-                st.rerun() # Forzamos recarga para que el mapa dibuje el borde instantáneamente
+            # --- CAPA 2: LA SOMBRA NEGRA PERMANENTE ---
+            lat_sombra, lon_sombra = [], []
+            if st.session_state.punto_seleccionado != "Todos":
+                punto_df = df_mapa[df_mapa['ID_Punto'].astype(str) == st.session_state.punto_seleccionado]
+                if not punto_df.empty:
+                    lat_sombra = [punto_df['Latitud'].iloc[0]]
+                    lon_sombra = [punto_df['Longitud'].iloc[0]]
+                    
+            fig_mapa.add_trace(go.Scattermap(
+                lat=lat_sombra, lon=lon_sombra, mode='markers',
+                marker=dict(size=20, color='black', opacity=1), 
+                hoverinfo='skip', showlegend=False  
+            ))
 
-        st.divider()
+            color_map = {
+                'AVISO LEVE': 'yellow', 'ALERTA': 'orange',
+                'INTERVENCION': 'red', 'INTERVENCION INMEDIATA': 'darkred' 
+            }
 
+            # --- CAPAS DE PUNTOS ---
+            for gravedad, color in color_map.items():
+                df_filtrado = df_mapa[df_mapa['Nivel'] == gravedad].copy() 
+                
+                if not df_filtrado.empty:
+                    indices_seleccionados = []
+                    if st.session_state.punto_seleccionado != "Todos":
+                        coincidencias = df_filtrado['ID_Punto'].astype(str) == st.session_state.punto_seleccionado
+                        if coincidencias.any():
+                            indices_seleccionados = df_filtrado.reset_index(drop=True).index[coincidencias].tolist()
 
-        # --- 3. SECCIÓN ÚNICA DE DESGLOSE POR PUNTO ---
-        st.subheader("Análise detallada por punto")
-        st.write("Selecciona un punto no mapa ou no desplegable inferior para ver o seu historial completo.")
-        
-        # Preparamos la lista de opciones para el desplegable
-        lista_puntos = ["Todos"] + df_mapa['ID_Punto'].astype(str).tolist()
-        
-        # Buscamos qué índice debe mostrar el desplegable basado en la memoria
-        if st.session_state.punto_seleccionado in lista_puntos:
-            indice_por_defecto = lista_puntos.index(st.session_state.punto_seleccionado)
-        else:
-            indice_por_defecto = 0
+                    fig_mapa.add_trace(go.Scattermap(
+                        lat=df_filtrado['Latitud'], lon=df_filtrado['Longitud'],
+                        mode='markers', customdata=df_filtrado['ID_Punto'].astype(str), 
+                        marker=dict(size=14, color=color, opacity=0.85), 
+                        selected=dict(marker=dict(color='#00FFFF', size=22, opacity=1)), 
+                        unselected=dict(marker=dict(opacity=0.85)), 
+                        selectedpoints=indices_seleccionados if indices_seleccionados else None,
+                        name=gravedad, 
+                        text=(
+                            "<b>Punto ID: " + df_filtrado['ID_Punto'].astype(str) + "</b><br>" +
+                            "Nivel: " + df_filtrado['Nivel'] + "<br>" +
+                            "Acel. Máx: " + df_filtrado['Aceleracion_Max'].astype(str) + " g<br>" +
+                            "Vel. Media: " + df_filtrado['Velocidad_kmh'].astype(str) + " km/h<br>" +
+                            "Viajes analizados: " + df_filtrado['Num_Viajes'].astype(str)
+                        ),
+                        hoverinfo="text"
+                    ))
 
-        # Mostramos el desplegable
-        col_selec, col_vacia = st.columns([1, 1])
-        with col_selec:
+            centro_lat = df_ruta['Latitud'].mean() if 'Latitud' in df_ruta.columns else 0
+            centro_lon = df_ruta['Longitud'].mean() if 'Longitud' in df_ruta.columns else 0
+
+            config_leyenda = dict(
+                title=dict(text='Nivel de Gravedad', font=dict(size=14, color="black")), 
+                font=dict(size=12, color="black"), itemsizing='constant', 
+                bgcolor="rgba(255, 255, 255, 0.85)", bordercolor="black", borderwidth=1,
+                yanchor="top", y=0.95, xanchor="right", x=0.99
+            )
+            
+            revision_id = tabla_seleccionada 
+
+            if estilo_mapa == "Callejero":
+                fig_mapa.update_layout(
+                    uirevision=revision_id, map_style="open-street-map", margin={"r":0,"t":0,"l":0,"b":0},
+                    map=dict(center=dict(lat=centro_lat, lon=centro_lon), zoom=12),
+                    height=600, legend=config_leyenda 
+                )
+            else:
+                fig_mapa.update_layout(
+                    uirevision=revision_id, map_style="white-bg", margin={"r":0,"t":0,"l":0,"b":0},
+                    map=dict(
+                        center=dict(lat=centro_lat, lon=centro_lon), zoom=12,
+                        layers=[
+                            dict(sourcetype="raster", source=["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"], below="traces"),
+                            dict(sourcetype="raster", source=["https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"], below="traces")
+                        ]
+                    ),
+                    height=600, legend=config_leyenda 
+                )
+            
+            evento = st.plotly_chart(
+                fig_mapa, use_container_width=True, on_select="rerun", key="mapa_interactivo_ferrovixia"
+            )
+            
+            puntos_tocados = evento.selection.get("points", [])
+            if len(puntos_tocados) > 0:
+                punto_tocado = str(puntos_tocados[0]["customdata"])
+                if st.session_state.punto_seleccionado != punto_tocado:
+                    st.session_state.punto_seleccionado = punto_tocado
+                    st.rerun()
+
+        # ==========================================
+        # COLUMNA DERECHA: LOS DATOS Y MÉTRICAS
+        # ==========================================
+        with col_datos:
+            st.subheader(f"Resumo do traxecto")
+            
+            col_gravedad = 'Nivel' if 'Nivel' in df_ruta.columns else 'nivel_gravedad'
+            col_vel = 'velocidad_kmh' if 'velocidad_kmh' in df_ruta.columns else 'Velocidad_kmh'
+
+            total_puntos_unicos = len(df_mapa)
+            puntos_criticos = len(df_mapa[df_mapa[col_gravedad].isin(['INTERVENCION', 'INTERVENCION INMEDIATA'])])
+            vel_media = df_mapa[col_vel].mean() if col_vel in df_mapa.columns else 0.0
+            
+            # Usamos 3 columnas pequeñas dentro de la columna de datos para las métricas
+            # He acortado ligeramente los títulos para que quepan bien al estar a un lado
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Total Pts", total_puntos_unicos)
+            m2.metric("Críticos", puntos_criticos, delta_color="inverse")
+            m3.metric("Km/h", f"{vel_media:.1f}")
+            
+            st.divider()
+
+            st.subheader("Análise detallada")
+            st.write("Selecciona un punto no mapa ou aquí:")
+            
+            lista_puntos = ["Todos"] + df_mapa['ID_Punto'].astype(str).tolist()
+            indice_por_defecto = lista_puntos.index(st.session_state.punto_seleccionado) if st.session_state.punto_seleccionado in lista_puntos else 0
+
             seleccion_desplegable = st.selectbox(
                 "ID do punto a analizar:",
                 options=lista_puntos,
                 index=indice_por_defecto
             )
-        
-        # --- 4. LÓGICA DE SINCRONIZACIÓN (DESPLEGABLE -> MEMORIA) ---
-        if seleccion_desplegable != st.session_state.punto_seleccionado:
-            st.session_state.punto_seleccionado = seleccion_desplegable
-            st.rerun() # Obligamos a recargar la página para actualizar la tabla
-
-        # --- 5. MOSTRAR LA TABLA (SOLO UNA VEZ) ---
-        if st.session_state.punto_seleccionado != "Todos":
             
-            # Filtramos el dataframe original (df_ruta)
-            df_detalle = df_ruta[df_ruta['ID_Punto'].astype(str) == st.session_state.punto_seleccionado]
-            
-            if not df_detalle.empty:
-                st.write(f"**Historial de viaxes para o punto {st.session_state.punto_seleccionado}** ({len(df_detalle)} viaxes rexistrados)")
-                
-                # Seleccionamos las columnas a mostrar
-                columnas_mostrar = ['Archivo', 'Velocidad_kmh', 'Aceleracion_Max', 'f_CWT', 'f_WVD', 'Lambda', 'Nivel']
-                # Verificamos que existan para no dar error
-                columnas_existentes = [col for col in columnas_mostrar if col in df_detalle.columns]
-                
-                st.dataframe(
-                    df_detalle[columnas_existentes], 
-                    use_container_width=True,
-                    hide_index=True 
-                )
-        else:
-            # Mensaje por defecto cuando pone "Todos"
-            st.info("👆 Fai clic nun punto do mapa ou búscao no desplegable para analizar a súa evolución.")
+            if seleccion_desplegable != st.session_state.punto_seleccionado:
+                st.session_state.punto_seleccionado = seleccion_desplegable
+                st.rerun() 
 
-        # Botón para ver los datos crudos (opcional, agrupado aquí)
+            if st.session_state.punto_seleccionado != "Todos":
+                df_detalle = df_ruta[df_ruta['ID_Punto'].astype(str) == st.session_state.punto_seleccionado]
+                
+                if not df_detalle.empty:
+                    st.write(f"**Historial de viaxes** ({len(df_detalle)} viaxes)")
+                    
+                    columnas_mostrar = ['Archivo', 'Velocidad_kmh', 'Aceleracion_Max', 'Nivel']
+                    columnas_existentes = [col for col in columnas_mostrar if col in df_detalle.columns]
+                    
+                    st.dataframe(
+                        df_detalle[columnas_existentes], 
+                        use_container_width=True,
+                        hide_index=True 
+                    )
+            else:
+                st.info("👆 Fai clic nun punto para ver o seu historial.")
+
+        # ==========================================
+        # ZONA INFERIOR (ANCHO COMPLETO)
+        # ==========================================
+        st.divider()
         with st.expander("Ver datos crudos completos da tabla"):
             st.dataframe(df_ruta, use_container_width=True)
+
 
         # --- DESCARGA DE DOCUMENTO ---
         
