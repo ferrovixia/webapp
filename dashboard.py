@@ -566,7 +566,7 @@ with tab1:
                     data=csv_informe,
                     file_name=f"Datos_{tabla_seleccionada}.csv",
                     mime="text/csv",
-                    width='stretch
+                    width='stretch'
                 )
                 
             # BOTÓN 2: EL NUEVO INFORME PDF
