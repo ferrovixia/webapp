@@ -533,7 +533,7 @@ with tab1:
                     
                     st.dataframe(
                         df_detalle[columnas_existentes], 
-                        width='stretch,
+                        width='stretch',
                         hide_index=True 
                     )
             else:
@@ -544,7 +544,7 @@ with tab1:
         # ==========================================
         st.divider()
         with st.expander("Ver datos crudos completos da tabla"):
-            st.dataframe(df_ruta, width='stretch)
+            st.dataframe(df_ruta, width='stretch')
 
 
         # --- DESCARGA DE DOCUMENTOS ---
@@ -578,7 +578,7 @@ with tab1:
                     file_name=f"Informe_Mantenimiento_{tabla_seleccionada}.pdf",
                     mime="application/pdf",
                     type="primary", # Lo marcamos como principal para que destaque en granate/rojo
-                    width='stretch
+                    width='stretch'
                 )
         else:
             st.success("¡Boas novas! Este traxecto non ten baches que requiran intervención.")
@@ -632,8 +632,8 @@ with f2:
     st.write("📍 Escola de Enxeñaría de Telecomunicación, Vigo")
 
 # with f3:
-    # width='stretch
-    # st.image("logo_universidad.png", width='stretch)
+    # width='stretch'
+    # st.image("logo_universidad.png", width='stretch')
 
 # Nota de copyright opcional al final
 st.caption("© 2026 Proxecto FerroVixia - Monitorización Ferroviaria")
