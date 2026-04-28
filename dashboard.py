@@ -3,6 +3,8 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import base64
+import datetime
+from fpdf import FPDF
 from supabase import create_client, Client
 
 # --- CONFIGURACIÓN DE PÁGINA --
@@ -152,7 +154,68 @@ hide_st_style = """
             """
 st.markdown(hide_st_style, unsafe_allow_html=True)
 
-
+def crear_pdf_informe(df_alertas, nombre_trayecto):
+    pdf = FPDF()
+    pdf.add_page()
+    
+    # --- CABECERA ---
+    # Si quieres poner el logo en el PDF, descomenta esta línea:
+    # pdf.image("logo_ferrovixia.png", x=10, y=8, w=30)
+    
+    # Título (en color granate)
+    pdf.set_font("helvetica", "B", 20)
+    pdf.set_text_color(125, 25, 42) # Granate FerroVixia
+    pdf.cell(0, 15, "Informe Ejecutivo de Inspeccion", border=0, align="C", new_x="LMARGIN", new_y="NEXT")
+    
+    # --- DATOS GENERALES ---
+    pdf.set_font("helvetica", "", 12)
+    pdf.set_text_color(0, 0, 0)
+    fecha_hoy = datetime.datetime.now().strftime("%d/%m/%Y")
+    
+    pdf.cell(0, 8, f"Fecha de generacion: {fecha_hoy}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 8, f"Trayecto analizado: {nombre_trayecto}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 8, f"Total de alertas a revisar: {len(df_alertas)}", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(5) # Salto de línea
+    
+    # --- TABLA DE ALERTAS ---
+    pdf.set_font("helvetica", "B", 10)
+    pdf.set_fill_color(125, 25, 42) # Fondo encabezado granate
+    pdf.set_text_color(255, 255, 255) # Texto blanco
+    
+    # Anchura de las columnas de la tabla
+    col_w = [25, 40, 40, 40, 45]
+    headers = ["ID Punto", "Latitud", "Longitud", "Acel. Max (g)", "Nivel"]
+    
+    # Imprimir encabezados
+    for i in range(len(headers)):
+        pdf.cell(col_w[i], 8, headers[i], border=1, align="C", fill=True)
+    pdf.ln()
+    
+    # Filas de datos
+    pdf.set_font("helvetica", "", 10)
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_fill_color(240, 240, 240) # Gris clarito para las filas pares
+    
+    fill = False
+    for index, row in df_alertas.iterrows():
+        # Extraemos los datos previniendo que cambien los nombres de las columnas
+        id_punto = str(row.get('ID_Punto', '-'))
+        lat = str(round(row.get('Latitud', row.get('latitud', 0)), 6))
+        lon = str(round(row.get('Longitud', row.get('longitud', 0)), 6))
+        acel = str(round(row.get('Aceleracion_Max', row.get('aceleracion_ms2', 0)), 2))
+        nivel = str(row.get('Nivel', row.get('nivel_gravedad', '-')))
+        
+        pdf.cell(col_w[0], 8, id_punto, border=1, align="C", fill=fill)
+        pdf.cell(col_w[1], 8, lat, border=1, align="C", fill=fill)
+        pdf.cell(col_w[2], 8, lon, border=1, align="C", fill=fill)
+        pdf.cell(col_w[3], 8, acel, border=1, align="C", fill=fill)
+        pdf.cell(col_w[4], 8, nivel, border=1, align="C", fill=fill)
+        pdf.ln()
+        
+        fill = not fill # Alternar el color de fondo para la siguiente fila
+        
+    # Devolvemos el PDF en formato binario listo para descargar
+    return bytes(pdf.output())
 
 # --- CONEXIÓN A SUPABASE ---
 @st.cache_resource
@@ -484,25 +547,41 @@ with tab1:
             st.dataframe(df_ruta, use_container_width=True)
 
 
-        # --- DESCARGA DE DOCUMENTO ---
-        
+        # --- DESCARGA DE DOCUMENTOS ---
         st.divider()
-        st.subheader("Exportar datos do traxecto")
+        st.subheader("📥 Exportar Parte de Traballo")
         
+        # Filtramos la tabla para quedarnos solo con las alertas importantes
+        col_gravedad = 'Nivel' if 'Nivel' in df_ruta.columns else 'nivel_gravedad'
         df_informe = df_ruta[df_ruta[col_gravedad].isin(['INTERVENCION', 'INTERVENCION INMEDIATA', 'ALERTA'])]
         
         if not df_informe.empty:
-            csv_informe = df_informe.to_csv(index=False).encode('utf-8')
+            col1_btn, col2_btn = st.columns(2)
             
-            st.download_button(
-                label="Descargar informe de mantemento (CSV)",
-                data=csv_informe,
-                file_name=f"Parte_Mantenimiento_{tabla_seleccionada}.csv",
-                mime="text/csv",
-                type="primary" 
-            )
+            # BOTÓN 1: EL CSV TRADICIONAL
+            with col1_btn:
+                csv_informe = df_informe.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📄 Descargar Datos (CSV)",
+                    data=csv_informe,
+                    file_name=f"Datos_{tabla_seleccionada}.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+                
+            # BOTÓN 2: EL NUEVO INFORME PDF
+            with col2_btn:
+                pdf_bytes = crear_pdf_informe(df_informe, nombres_bonitos.get(tabla_seleccionada, tabla_seleccionada))
+                st.download_button(
+                    label="📕 Descargar Informe (PDF)",
+                    data=pdf_bytes,
+                    file_name=f"Informe_Mantenimiento_{tabla_seleccionada}.pdf",
+                    mime="application/pdf",
+                    type="primary", # Lo marcamos como principal para que destaque en granate/rojo
+                    use_container_width=True
+                )
         else:
-            st.success("Este traxecto non ten baches que precisen intervención.")
+            st.success("¡Boas novas! Este traxecto non ten baches que requiran intervención.")
 
     # Esta es la pareja del 'if not df_ruta.empty:' de arriba
     else:
