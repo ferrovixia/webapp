@@ -474,7 +474,7 @@ with tab1:
                 )
             
             evento = st.plotly_chart(
-                fig_mapa, width='stretch, on_select="rerun", key="mapa_interactivo_ferrovixia"
+                fig_mapa, width='stretch', on_select="rerun", key="mapa_interactivo_ferrovixia"
             )
             
             puntos_tocados = evento.selection.get("points", [])
