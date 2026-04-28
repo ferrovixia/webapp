@@ -474,7 +474,7 @@ with tab1:
                 )
             
             evento = st.plotly_chart(
-                fig_mapa, use_container_width=True, on_select="rerun", key="mapa_interactivo_ferrovixia"
+                fig_mapa, width='stretch, on_select="rerun", key="mapa_interactivo_ferrovixia"
             )
             
             puntos_tocados = evento.selection.get("points", [])
@@ -533,7 +533,7 @@ with tab1:
                     
                     st.dataframe(
                         df_detalle[columnas_existentes], 
-                        use_container_width=True,
+                        width='stretch,
                         hide_index=True 
                     )
             else:
@@ -544,7 +544,7 @@ with tab1:
         # ==========================================
         st.divider()
         with st.expander("Ver datos crudos completos da tabla"):
-            st.dataframe(df_ruta, use_container_width=True)
+            st.dataframe(df_ruta, width='stretch)
 
 
         # --- DESCARGA DE DOCUMENTOS ---
@@ -566,7 +566,7 @@ with tab1:
                     data=csv_informe,
                     file_name=f"Datos_{tabla_seleccionada}.csv",
                     mime="text/csv",
-                    use_container_width=True
+                    width='stretch
                 )
                 
             # BOTÓN 2: EL NUEVO INFORME PDF
@@ -578,7 +578,7 @@ with tab1:
                     file_name=f"Informe_Mantenimiento_{tabla_seleccionada}.pdf",
                     mime="application/pdf",
                     type="primary", # Lo marcamos como principal para que destaque en granate/rojo
-                    use_container_width=True
+                    width='stretch
                 )
         else:
             st.success("¡Boas novas! Este traxecto non ten baches que requiran intervención.")
@@ -632,8 +632,8 @@ with f2:
     st.write("📍 Escola de Enxeñaría de Telecomunicación, Vigo")
 
 # with f3:
-    # use_container_width=True 
-    # st.image("logo_universidad.png", use_container_width=True)
+    # width='stretch
+    # st.image("logo_universidad.png", width='stretch)
 
 # Nota de copyright opcional al final
 st.caption("© 2026 Proxecto FerroVixia - Monitorización Ferroviaria")
