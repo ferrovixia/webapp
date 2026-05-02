@@ -234,7 +234,7 @@ def init_connection():
             
    
     if not url or not key:
-        st.error("🚨 Faltan las credenciales de Supabase. Revisa las variables en Azure.")
+        st.error(" Faltan las credenciales de Supabase. Revisa las variables en Azure.")
         st.stop()
         
     return create_client(url, key)
@@ -253,7 +253,7 @@ def obtener_tablas_disponibles():
             return [fila['table_name'] for fila in response.data]
         return []
     except Exception as e:
-        st.error("Error al obtener las tablas. ¿Creaste la función SQL en Supabase?")
+        st.error("Error ao obter as táboas.")
         return []
 
 @st.cache_data(ttl=60)
@@ -278,8 +278,11 @@ def obtener_trayectoria_base(nombre_tabla_resultados):
 # --- INTERFAZ DE USUARIO ---
 lista_tablas = obtener_tablas_disponibles()
 
+if "nuevo_vilagarcia_pontevedra_ida_resultados" in lista_tablas:
+    lista_tablas.remove("nuevo_vilagarcia_pontevedra_ida_resultados")
+
 if not lista_tablas:
-    st.info("No se han encontrado tablas terminadas en '_resultados' en la base de datos.")
+    st.info("No se atoparon táboas rematadas en '_resultados' na base de datos.")
     st.stop()
 
 
@@ -288,7 +291,7 @@ nombres_bonitos = {tabla: tabla.replace("nuevo_", "").replace("_resultados", "")
 diccionario_trayectos = {
     "nuevo_pontevedra_vigo_ida_resultados": "Vigo - Pontevedra",
     "nuevo_pontevedra_vigo_vuelta_resultados": "Pontevedra - Vigo",
-    "nuevo_vilagarcia_pontevedra_ida_resultados": "Pontevedra - Vilagarcía",
+    #"nuevo_vilagarcia_pontevedra_ida_resultados": "Pontevedra - Vilagarcía",
     "nuevo_vilagarcia_pontevedra_vuelta_resultados": "Vilagarcía - Pontevedra",
     "nuevo_santiago_vilagarcia_ida_resultados": "Vilagarcía - Santiago",
     "nuevo_santiago_vilagarcia_vuelta_resultados": "Santiago - Vilagarcía",
@@ -376,7 +379,7 @@ with tab1:
             
             estilo_mapa = st.radio(
                 "Tipo de mapa:", 
-                ["Callejero", "Satélite"], 
+                ["Rueiro", "Satélite"], 
                 horizontal=True
             )
 
@@ -389,10 +392,10 @@ with tab1:
                     lat=df_base['latitud'], lon=df_base['longitud'],
                     mode='lines',
                     line=dict(width=3, color='rgba(0, 80, 200, 0.7)'), 
-                    name='Trayecto completo', hoverinfo='skip' 
+                    name='Traxecto completo', hoverinfo='skip' 
                 ))
             else:
-                st.toast("Aviso: No se encontró la trayectoria base para dibujar la línea.", icon="⚠️")
+                st.toast("Aviso: Non se atopou traxectoria base para dibuxar a liña.", icon="⚠️")
             
             # --- CAPA 2: LA SOMBRA NEGRA PERMANENTE ---
             lat_sombra, lon_sombra = [], []
@@ -446,7 +449,7 @@ with tab1:
             centro_lon = df_ruta['Longitud'].mean() if 'Longitud' in df_ruta.columns else 0
 
             config_leyenda = dict(
-                title=dict(text='Nivel de Gravedad', font=dict(size=14, color="black")), 
+                title=dict(text='Nivel de Gravidade', font=dict(size=14, color="black")), 
                 font=dict(size=12, color="black"), itemsizing='constant', 
                 bgcolor="rgba(255, 255, 255, 0.85)", bordercolor="black", borderwidth=1,
                 yanchor="top", y=0.95, xanchor="right", x=0.99
@@ -454,7 +457,7 @@ with tab1:
             
             revision_id = tabla_seleccionada 
 
-            if estilo_mapa == "Callejero":
+            if estilo_mapa == "Rueiro":
                 fig_mapa.update_layout(
                     uirevision=revision_id, map_style="open-street-map", margin={"r":0,"t":0,"l":0,"b":0},
                     map=dict(center=dict(lat=centro_lat, lon=centro_lon), zoom=12),
@@ -504,6 +507,8 @@ with tab1:
             m2.metric("Críticos", puntos_criticos, delta_color="inverse")
             m3.metric("Km/h", f"{vel_media:.1f}")
             
+            st.caption("Baseámonos nos umbrais que emprega [ADIF](https://contrataciondelestado.es/wps/wcm/connect/PLACE_es/Site/area/docAccCmpnt?srv=cmpnt&cmpntname=GetDocumentsById&source=library&DocumentIdParam=c14b78f2-0046-4060-b2a8-fd6cf7800ee6), pero é importante aclarar que ao tratarse dun prototipo académico, precisa dunha calibración máis exhaustiva.")
+           
             st.divider()
 
             st.subheader("Análise detallada")
@@ -531,25 +536,63 @@ with tab1:
                     columnas_mostrar = ['Archivo', 'Velocidad_kmh', 'Aceleracion_Max', 'Nivel']
                     columnas_existentes = [col for col in columnas_mostrar if col in df_detalle.columns]
                     
+                    df_mostrar = df_detalle[columnas_existentes].copy()
+                    
+                    if 'Archivo' in df_mostrar.columns:
+                        df_mostrar['Archivo'] = (df_mostrar['Archivo']
+                            .str.replace('Resultados_movil2_', '')
+                            .str.replace('Resultados_movil_', '')
+                            .str.replace('Resultados_M5_', '')
+                            .str.replace('.mat', '')
+                        )
+                        
+                    nomes_novos = {
+                        'Archivo': 'Arquivo',
+                        'Velocidad_kmh': 'Velocidade (km/h)',
+                        'Aceleracion_Max': 'Aceleración Máx (g)',
+                        'Nivel': 'Nivel' 
+                    }
+                    df_mostrar = df_mostrar.rename(columns=nomes_novos)
+                    
                     st.dataframe(
-                        df_detalle[columnas_existentes], 
+                        df_mostrar, 
                         width='stretch',
                         hide_index=True 
                     )
             else:
-                st.info("👆 Fai clic nun punto para ver o seu historial.")
+                st.info("Fai clic nun punto para ver o seu historial.")
 
         # ==========================================
         # ZONA INFERIOR (ANCHO COMPLETO)
         # ==========================================
         st.divider()
         with st.expander("Ver datos crudos completos da tabla"):
-            st.dataframe(df_ruta, width='stretch')
+          
+            df_crudos = df_ruta.copy()
+            
+            if 'Archivo' in df_crudos.columns:
+                df_crudos['Archivo'] = (df_crudos['Archivo']
+                    .str.replace('Resultados_movil2_', '')
+                    .str.replace('Resultados_movil_', '')
+                    .str.replace('Resultados_M5_', '')
+                    .str.replace('.mat', '')
+                )
+
+            nomes_galego_crudos = {
+                'Archivo': 'Arquivo',
+                'Velocidad_kmh': 'Velocidade (km/h)',
+                'Aceleracion_Max': 'Aceleración Máx (g)',
+                'Latitud': 'Latitude',
+                'Longitud': 'Lonxitude'
+            }
+            df_crudos = df_crudos.rename(columns=nomes_galego_crudos)
+            
+            st.dataframe(df_crudos, width='stretch')
 
 
         # --- DESCARGA DE DOCUMENTOS ---
         st.divider()
-        st.subheader("📥 Exportar Parte de Traballo")
+        st.subheader("Exportar Informe de Mantemento")
         
         # Filtramos la tabla para quedarnos solo con las alertas importantes
         col_gravedad = 'Nivel' if 'Nivel' in df_ruta.columns else 'nivel_gravedad'
@@ -562,7 +605,7 @@ with tab1:
             with col1_btn:
                 csv_informe = df_informe.to_csv(index=False).encode('utf-8')
                 st.download_button(
-                    label="📄 Descargar Datos (CSV)",
+                    label="Descargar Datos (CSV)",
                     data=csv_informe,
                     file_name=f"Datos_{tabla_seleccionada}.csv",
                     mime="text/csv",
@@ -573,7 +616,7 @@ with tab1:
             with col2_btn:
                 pdf_bytes = crear_pdf_informe(df_informe, nombres_bonitos.get(tabla_seleccionada, tabla_seleccionada))
                 st.download_button(
-                    label="📕 Descargar Informe (PDF)",
+                    label="Descargar Informe (PDF)",
                     data=pdf_bytes,
                     file_name=f"Informe_Mantenimiento_{tabla_seleccionada}.pdf",
                     mime="application/pdf",
@@ -581,7 +624,7 @@ with tab1:
                     width='stretch'
                 )
         else:
-            st.success("¡Boas novas! Este traxecto non ten baches que requiran intervención.")
+            st.success("Este traxecto non ten baches que requiran intervención.")
 
     # Esta es la pareja del 'if not df_ruta.empty:' de arriba
     else:
@@ -621,7 +664,7 @@ f1, f2, f3 = st.columns([2, 2, 1])
 with f1:
     st.markdown("**O equipo:**")
     st.write("Eva Deibe de Bernardo")
-    st.write("Marcos López Miguel")
+    st.write("Marcos López Míguez")
     st.write("Manuela Outeiro Otero")
     st.write("Adriana Pazos Lorenzo")
     st.write("Uxía Veiras Suárez")
