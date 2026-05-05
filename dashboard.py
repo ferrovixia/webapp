@@ -115,7 +115,7 @@ button[data-baseweb="tab"][aria-selected="true"] div[data-testid="stMarkdownCont
     <div class="texto-banner">
         <h1 style="color: {color_texto}; margin: 0; font-size: 2.5rem; font-weight: bold;">FerroVixía</h1>
         <p style="color: {color_texto}; margin: 0; opacity: 0.9; font-size: 1.1rem; margin-top: 5px;">
-            Sistema de Monitorización Ferroviaria
+            Sistema de Monitorización da Infraestrutura Ferroviaria
         </p>
     </div>
 </div>
@@ -124,28 +124,27 @@ st.markdown(html_header, unsafe_allow_html=True)
 
 hide_st_style = """
             <style>
-            /* 1. Oculta el menú de la derecha (los 3 puntos) sin romper el header */
+          
             [data-testid="stStandardToolbar"] {
                 display: none !important;
             }
             
-            /* 2. Oculta el botón de 'Deploy' si aparece */
+           
             [data-testid="stAppDeployButton"] {
                 display: none !important;
             }
 
-            /* 3. Oculta el pie de página */
+          
             footer {
                 visibility: hidden;
             }
 
-            /* 4. Asegura que el header no bloquee los clics */
+         
             header {
                 background-color: rgba(0,0,0,0);
-                pointer-events: none; /* Esto hace que el header sea 'transparente' a los clics */
+                pointer-events: none; 
             }
 
-            /* 5. PERO permite que el botón de la barra lateral sí reciba clics */
             [data-testid="stSidebarCollapseButton"], 
             [data-testid="stHeader"] button {
                 pointer-events: auto !important;
@@ -157,11 +156,7 @@ st.markdown(hide_st_style, unsafe_allow_html=True)
 def crear_pdf_informe(df_alertas, nombre_trayecto):
     pdf = FPDF()
     pdf.add_page()
-    
-    # --- CABECERA ---
-    # Si quieres poner el logo en el PDF, descomenta esta línea:
-    # pdf.image("logo_ferrovixia.png", x=10, y=8, w=30)
-    
+   
     # Título (en color granate)
     pdf.set_font("helvetica", "B", 20)
     pdf.set_text_color(125, 25, 42) # Granate FerroVixia
@@ -278,9 +273,10 @@ def obtener_trayectoria_base(nombre_tabla_resultados):
 # --- INTERFAZ DE USUARIO ---
 lista_tablas = obtener_tablas_disponibles()
 
-if "nuevo_vilagarcia_pontevedra_ida_resultados" in lista_tablas:
+if "nuevo_vilagarcia_pontevedra_ida_resultados" or "nuevo_coruna_santiago_ida_resultados" in lista_tablas:
     lista_tablas.remove("nuevo_vilagarcia_pontevedra_ida_resultados")
-
+    lista_tablas.remove("nuevo_coruna_santiago_ida_resultados")
+    
 if not lista_tablas:
     st.info("No se atoparon táboas rematadas en '_resultados' na base de datos.")
     st.stop()
@@ -295,7 +291,7 @@ diccionario_trayectos = {
     "nuevo_vilagarcia_pontevedra_vuelta_resultados": "Vilagarcía - Pontevedra",
     "nuevo_santiago_vilagarcia_ida_resultados": "Vilagarcía - Santiago",
     "nuevo_santiago_vilagarcia_vuelta_resultados": "Santiago - Vilagarcía",
-    "nuevo_coruna_santiago_ida_resultados": "Santiago - Coruña",
+    #"nuevo_coruna_santiago_ida_resultados": "Santiago - Coruña",
     "nuevo_coruna_santiago_vuelta_resultados": "Coruña - Santiago"
 }
 
