@@ -1,6 +1,7 @@
 import os
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.graph_objects as go
 import base64
 import datetime
@@ -273,9 +274,8 @@ def obtener_trayectoria_base(nombre_tabla_resultados):
 # --- INTERFAZ DE USUARIO ---
 lista_tablas = obtener_tablas_disponibles()
 
-if "nuevo_vilagarcia_pontevedra_ida_resultados" or "nuevo_coruna_santiago_ida_resultados" in lista_tablas:
-    lista_tablas.remove("nuevo_vilagarcia_pontevedra_ida_resultados")
-    lista_tablas.remove("nuevo_coruna_santiago_ida_resultados")
+tablas_a_ignorar = {"nuevo_vilagarcia_pontevedra_ida_resultados", "nuevo_coruna_santiago_ida_resultados"}
+lista_tablas = [tabla for tabla in lista_tablas if tabla not in tablas_a_ignorar]
     
 if not lista_tablas:
     st.info("No se atoparon táboas rematadas en '_resultados' na base de datos.")
@@ -303,44 +303,57 @@ tab1, tab2 = st.tabs(["MONITORIZACIÓN", "O PROXECTO"])
 
 # --- CONTENIDO DE LA PESTAÑA 1 ---
 with tab1:
-    st.title(f"Visualización de traxectos")
-    st.markdown("**Análisis de vibracións e infraestructura no tramo seleccionado.**")
+    col_titulo, col_selector = st.columns([2.5, 1])
+    
+    with col_titulo:
+        st.title("Visualización de traxectos")
+        st.markdown("**Análisis de vibracións e infraestructura no tramo seleccionado.**")
 
-    col_sel1, col_sel2 = st.columns(2)
-    with col_sel1:
+    with col_selector:
+        # Añadimos un par de saltos de línea invisibles para empujar el selector hacia abajo
+        # y que quede perfectamente alineado con el título (que por defecto tiene margen arriba)
+        st.write("")
+        st.write("")
+        
+        def resetear_punto_ruta():
+            st.session_state.punto_seleccionado = "Todos"
+            
+        # 2. Añadimos el 'key' y el 'on_change' al selector principal
         tabla_seleccionada = st.selectbox(
             "Selecciona o traxecto:", 
             options=lista_tablas,
-            format_func=lambda x: diccionario_trayectos.get(x, x)
+            format_func=lambda x: diccionario_trayectos.get(x, x),
+            key="selector_ruta_principal",
+            on_change=resetear_punto_ruta  # <-- La magia ocurre aquí
         )
     
     nombre_amigable = diccionario_trayectos.get(tabla_seleccionada, tabla_seleccionada)
 
-    # Cargar datos de la tabla elegida
+# Cargar datos de la tabla elegida
     with st.spinner(f"Descargando datos de {nombre_amigable}..."):
         df_ruta = obtener_datos_tabla(tabla_seleccionada)
 
-    # Verificamos que la tabla tenga datos antes de intentar pintar nada
-    # --- PROCESAMIENTO DE DATOS: AGRUPACIÓN SOLO POR ID_PUNTO ---
-
-    st.divider()
-
-    if not df_ruta.empty:
-        # 1. Aseguramos que las columnas sean numéricas antes de la media
+    # --- NUEVO: FUNCIÓN CACHEADA PARA MATEMÁTICAS ---
+    @st.cache_data
+    def procesar_datos_mapa(df_original):
+        # Hacemos una copia para no romper el original
+        df_proc = df_original.copy()
+        
+        # 1. Aseguramos numéricos
         cols_a_promediar = ['Latitud', 'Longitud', 'Aceleracion_Max', 'Velocidad_kmh', 'f_CWT', 'f_WVD', 'Lambda']
         for col in cols_a_promediar:
-            if col in df_ruta.columns:
-                df_ruta[col] = pd.to_numeric(df_ruta[col], errors='coerce')
+            if col in df_proc.columns:
+                df_proc[col] = pd.to_numeric(df_proc[col], errors='coerce')
 
-        # (Opcional, si aplicaste lo de los ceros en los M5)
-        import numpy as np
-        df_ruta['Velocidad_kmh'] = df_ruta['Velocidad_kmh'].replace(0.0, np.nan)
-        df_ruta['Lambda'] = df_ruta['Lambda'].replace(0.0, np.nan)
-
-        # 2. Agrupamos solo por ID_Punto
-        df_mapa = df_ruta.groupby('ID_Punto').agg({
-            'Latitud': 'mean',           # Conserva todos los decimales
-            'Longitud': 'mean',          # Conserva todos los decimales
+        if 'Velocidad_kmh' in df_proc.columns:
+            df_proc['Velocidad_kmh'] = df_proc['Velocidad_kmh'].replace(0.0, np.nan)
+        if 'Lambda' in df_proc.columns:
+            df_proc['Lambda'] = df_proc['Lambda'].replace(0.0, np.nan)
+            
+        # 2. Agrupación (Groupby)
+        df_agrupado = df_proc.groupby('ID_Punto').agg({
+            'Latitud': 'mean',           
+            'Longitud': 'mean',          
             'Nivel': 'first',            
             'Aceleracion_Max': 'mean',    
             'Velocidad_kmh': 'mean',
@@ -350,19 +363,37 @@ with tab1:
             'Archivo': 'count'           
         }).reset_index()
 
-        # Renombramos
-        df_mapa.rename(columns={'Archivo': 'Num_Viajes'}, inplace=True)
+        df_agrupado.rename(columns={'Archivo': 'Num_Viajes'}, inplace=True)
         
-        # 3. REDONDEAMOS SOLO LAS MÉTRICAS (Respetando el GPS)
         columnas_metricas = ['Aceleracion_Max', 'Velocidad_kmh', 'f_CWT', 'f_WVD', 'Lambda']
-        df_mapa[columnas_metricas] = df_mapa[columnas_metricas].round(2)
+        columnas_existentes = [c for c in columnas_metricas if c in df_agrupado.columns]
+        df_agrupado[columnas_existentes] = df_agrupado[columnas_existentes].round(2)
+        
+        return df_agrupado
 
-       # (Aseguramos que la memoria interna exista antes de pintar nada)
+    # --- PROCESAMIENTO DE DATOS ---
+    st.divider()
+
+    if not df_ruta.empty:
+        # Llamamos a la función mágica (solo calculará la primera vez)
+        df_mapa = procesar_datos_mapa(df_ruta)
+
+        # (Aseguramos que la memoria interna exista antes de pintar nada)
         if 'punto_seleccionado' not in st.session_state:
             st.session_state.punto_seleccionado = "Todos"
 
+        # --- 🛠️ LA MAGIA ANTIPARPADEO ---
+        # Leemos el clic directamente de la memoria de Streamlit ANTES de dibujar el mapa
+        if "mapa_interactivo_ferrovixia" in st.session_state:
+            estado_mapa = st.session_state["mapa_interactivo_ferrovixia"]
+            if estado_mapa and "selection" in estado_mapa:
+                pts = estado_mapa["selection"].get("points", [])
+                if pts:
+                    st.session_state.punto_seleccionado = str(pts[0]["customdata"])
+        # ----------------------------------------
+
         st.header(f"{nombre_amigable}")
-        
+
         # --- CREAMOS LAS DOS COLUMNAS EN PARALELO ---
         # El 60% del ancho para el mapa (1.5) y el 40% para los datos (1)
         col_mapa, col_datos = st.columns([1.5, 1], gap="large")
@@ -393,19 +424,6 @@ with tab1:
             else:
                 st.toast("Aviso: Non se atopou traxectoria base para dibuxar a liña.", icon="⚠️")
             
-            # --- CAPA 2: LA SOMBRA NEGRA PERMANENTE ---
-            lat_sombra, lon_sombra = [], []
-            if st.session_state.punto_seleccionado != "Todos":
-                punto_df = df_mapa[df_mapa['ID_Punto'].astype(str) == st.session_state.punto_seleccionado]
-                if not punto_df.empty:
-                    lat_sombra = [punto_df['Latitud'].iloc[0]]
-                    lon_sombra = [punto_df['Longitud'].iloc[0]]
-                    
-            fig_mapa.add_trace(go.Scattermap(
-                lat=lat_sombra, lon=lon_sombra, mode='markers',
-                marker=dict(size=20, color='black', opacity=1), 
-                hoverinfo='skip', showlegend=False  
-            ))
 
             color_map = {
                 'AVISO LEVE': 'yellow', 'ALERTA': 'orange',
@@ -427,7 +445,7 @@ with tab1:
                         lat=df_filtrado['Latitud'], lon=df_filtrado['Longitud'],
                         mode='markers', customdata=df_filtrado['ID_Punto'].astype(str), 
                         marker=dict(size=14, color=color, opacity=0.85), 
-                        selected=dict(marker=dict(color='#00FFFF', size=22, opacity=1)), 
+                        selected=dict(marker=dict(color='#AE66DB', size=20, opacity=1)), 
                         unselected=dict(marker=dict(opacity=0.85)), 
                         selectedpoints=indices_seleccionados if indices_seleccionados else None,
                         name=gravedad, 
@@ -441,28 +459,68 @@ with tab1:
                         hoverinfo="text"
                     ))
 
-            centro_lat = df_ruta['Latitud'].mean() if 'Latitud' in df_ruta.columns else 0
-            centro_lon = df_ruta['Longitud'].mean() if 'Longitud' in df_ruta.columns else 0
+            # 1. Calculamos dinámicamente dónde centrar el mapa y el nivel de zoom
+            if st.session_state.punto_seleccionado != "Todos":
+                # Buscamos las coordenadas exactas de ese punto en el dataframe
+                df_punto = df_mapa[df_mapa['ID_Punto'].astype(str) == st.session_state.punto_seleccionado]
+                
+                if not df_punto.empty:
+                    centro_lat = df_punto['Latitud'].iloc[0]
+                    centro_lon = df_punto['Longitud'].iloc[0]
+                    nivel_zoom = 17 # Un zoom cercano para ver el detalle de la vía
+                    
+                    # MAGIA PLOTLY: Al cambiar el revision_id, forzamos a Plotly a viajar a este nuevo centro
+                    revision_id = f"{tabla_seleccionada}_{st.session_state.punto_seleccionado}"
+            else:
+                # Vista general de la ruta si está seleccionado "Todos"
+                centro_lat = df_ruta['Latitud'].dropna().mean() if 'Latitud' in df_ruta.columns else 0
+                centro_lon = df_ruta['Longitud'].dropna().mean() if 'Longitud' in df_ruta.columns else 0
+                nivel_zoom = 12
+                
+                # MAGIA PLOTLY: Si es la vista general, usamos el ID estático de la ruta. 
+                # Así, si el usuario explora libremente con el ratón, el mapa no le hace un reset molesto.
+                revision_id = tabla_seleccionada 
 
+            # Mantenemos tu leyenda tal cual
             config_leyenda = dict(
                 title=dict(text='Nivel de Gravidade', font=dict(size=14, color="black")), 
                 font=dict(size=12, color="black"), itemsizing='constant', 
                 bgcolor="rgba(255, 255, 255, 0.85)", bordercolor="black", borderwidth=1,
                 yanchor="top", y=0.95, xanchor="right", x=0.99
             )
-            
-            revision_id = tabla_seleccionada 
 
+            # 2. Actualizamos el mapa pasándole nuestras variables dinámicas (nivel_zoom)
             if estilo_mapa == "Rueiro":
                 fig_mapa.update_layout(
                     uirevision=revision_id, map_style="open-street-map", margin={"r":0,"t":0,"l":0,"b":0},
-                    map=dict(center=dict(lat=centro_lat, lon=centro_lon), zoom=12),
+                    map=dict(uirevision=revision_id, center=dict(lat=centro_lat, lon=centro_lon), zoom=nivel_zoom),
                     height=600, legend=config_leyenda 
                 )
             else:
                 fig_mapa.update_layout(
                     uirevision=revision_id, map_style="white-bg", margin={"r":0,"t":0,"l":0,"b":0},
                     map=dict(
+                        uirevision=revision_id,
+                        center=dict(lat=centro_lat, lon=centro_lon), zoom=nivel_zoom,
+                        layers=[
+                            dict(sourcetype="raster", source=["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"], below="traces"),
+                            dict(sourcetype="raster", source=["https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"], below="traces")
+                        ]
+                    ),
+                    height=600, legend=config_leyenda 
+                )
+
+            if estilo_mapa == "Rueiro":
+                fig_mapa.update_layout(
+                    uirevision=revision_id, map_style="open-street-map", margin={"r":0,"t":0,"l":0,"b":0},
+                    map=dict(uirevision=revision_id, center=dict(lat=centro_lat, lon=centro_lon), zoom=12),
+                    height=600, legend=config_leyenda 
+                )
+            else:
+                fig_mapa.update_layout(
+                    uirevision=revision_id, map_style="white-bg", margin={"r":0,"t":0,"l":0,"b":0},
+                    map=dict(
+                        uirevision=revision_id,
                         center=dict(lat=centro_lat, lon=centro_lon), zoom=12,
                         layers=[
                             dict(sourcetype="raster", source=["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"], below="traces"),
@@ -472,16 +530,9 @@ with tab1:
                     height=600, legend=config_leyenda 
                 )
             
-            evento = st.plotly_chart(
+            st.plotly_chart(
                 fig_mapa, width='stretch', on_select="rerun", key="mapa_interactivo_ferrovixia"
             )
-            
-            puntos_tocados = evento.selection.get("points", [])
-            if len(puntos_tocados) > 0:
-                punto_tocado = str(puntos_tocados[0]["customdata"])
-                if st.session_state.punto_seleccionado != punto_tocado:
-                    st.session_state.punto_seleccionado = punto_tocado
-                    st.rerun()
 
         # ==========================================
         # COLUMNA DERECHA: LOS DATOS Y MÉTRICAS
@@ -511,17 +562,25 @@ with tab1:
             st.write("Selecciona un punto no mapa ou aquí:")
             
             lista_puntos = ["Todos"] + df_mapa['ID_Punto'].astype(str).tolist()
-            indice_por_defecto = lista_puntos.index(st.session_state.punto_seleccionado) if st.session_state.punto_seleccionado in lista_puntos else 0
 
-            seleccion_desplegable = st.selectbox(
+            # 1. Asegurarnos de que el punto en memoria sigue existiendo en la lista actual
+            if st.session_state.punto_seleccionado not in lista_puntos:
+                st.session_state.punto_seleccionado = "Todos"
+
+            # 2. Función "callback" que se ejecutará solo cuando el usuario toque el selectbox
+            def sincronizar_selector():
+                # El selectbox guardará su valor temporal en "selector_widget"
+                # Lo pasamos a nuestra variable global "punto_seleccionado"
+                st.session_state.punto_seleccionado = st.session_state.selector_widget
+
+            # 3. El Selectbox nativo
+            st.selectbox(
                 "ID do punto a analizar:",
                 options=lista_puntos,
-                index=indice_por_defecto
+                index=lista_puntos.index(st.session_state.punto_seleccionado),
+                key="selector_widget",         # Asignamos una clave interna de Streamlit
+                on_change=sincronizar_selector # Le decimos que ejecute la función al cambiar
             )
-            
-            if seleccion_desplegable != st.session_state.punto_seleccionado:
-                st.session_state.punto_seleccionado = seleccion_desplegable
-                st.rerun() 
 
             if st.session_state.punto_seleccionado != "Todos":
                 df_detalle = df_ruta[df_ruta['ID_Punto'].astype(str) == st.session_state.punto_seleccionado]
